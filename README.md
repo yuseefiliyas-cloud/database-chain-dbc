@@ -12,8 +12,8 @@
   - **10%** routed to buyback-and-burn reserves
 
 ## Live Sepolia Testnet Deployments
-- **DBC Genesis Token:** `0xYourDBCAddress`
-- **SimpleDEX (AMM):** `0xYourSimpleDEXAddress`
-- **FlashLoanRouter (0% Fee):** `0xYourFlashLoanRouterAddress`
-- **StakingVault (USDC Yield):** `0xYourStakingVaultAddress`
-- **FounderVesting (20% Lock):** `0xYourFounderVestingAddress`
+- **DBC Genesis Token:** `0x40CA93d7e4783672f3d12c48e7260E09F3CDfd4d`
+- **SimpleDEX (AMM):** `0x7b618CEa67D5c3030304fe6A7B9d891Ea61bd7d8`
+- **FlashLoanRouter (0% Fee):** `0x148C334B3127F2D255c1d2007D78683708430D6b`
+- **StakingVault (USDC Yield):** `0x835Cea47CD6041a5C446261A225669cD5099E5E3`
+- **FounderVesting (20% Lock):** `0xf22D8b8d56C303D92CCCBC5a183c23bAA71adB3B`
