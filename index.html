@@ -2,25 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Database Chain ($DBC) — Testnet DeFi Portal</title>
-  <script src="https://cloudflare.com"></script>
+  <script src="https://jsdelivr.net"></script>
   <style>
     body { font-family: system-ui, sans-serif; background: #0b0f19; color: #f8fafc; max-width: 720px; margin: 40px auto; padding: 0 20px; }
     .card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #334155; }
     h1, h2 { margin-top: 0; color: #38bdf8; }
     input { width: 100%; padding: 10px; margin: 8px 0 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; box-sizing: border-box; }
-    button { background: #0284c7; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; margin-right: 8px; }
+    button { background: #0284c7; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; margin-right: 8px; margin-top: 6px; }
     button:hover { background: #0369a1; }
     .badge { background: #064e3b; color: #34d399; padding: 4px 10px; border-radius: 999px; font-size: 12px; }
-    #status { margin-top: 10px; color: #fbbf24; font-size: 14px; word-break: break-all; }
+    #status { margin-top: 12px; color: #fbbf24; font-size: 14px; word-break: break-all; }
   </style>
 </head>
 <body>
   <h1>Database Chain ($DBC) <span class="badge">Sepolia Testnet</span></h1>
+
   <div class="card">
-    <button onclick="connectWallet()">Connect MetaMask</button>
+    <button id="connectBtn" onclick="connectWallet()">Connect MetaMask</button>
     <span id="walletAddress">Not connected</span>
-    <div id="status"></div>
+    <div id="status">Ready to connect. Make sure MetaMask is unlocked.</div>
   </div>
 
   <div class="card">
@@ -39,7 +41,7 @@
   </div>
 
   <script>
-    // PASTE YOUR SEPOLIA CONTRACT ADDRESSES HERE:
+    // 1. REPLACE THESE 4 PLACEHOLDERS WITH YOUR REAL SEPOLIA ADDRESSES:
     const DBC_ADDR = "0x40CA93d7e4783672f3d12c48e7260E09F3CDfd4d";
     const MUSDC_ADDR = "0x39C66c9Df068C0019eE20728a25D05EB79136A29";
     const DEX_ADDR = "0x7b618CEa67D5c3030304fe6A7B9d891Ea61bd7d8";
@@ -58,61 +60,115 @@
 
     let provider, signer, userAddr;
 
-    async function connectWallet() {
-      if (!window.ethereum) return alert("Please install MetaMask!");
-      provider = new ethers.BrowserProvider(window.ethereum);
-      signer = await provider.getSigner();
-      userAddr = await signer.getAddress();
-      document.getElementById("walletAddress").innerText = userAddr;
-      setStatus("Wallet connected on Sepolia!");
+    function setStatus(msg) {
+      document.getElementById("status").innerText = msg;
     }
 
-    function setStatus(msg) { document.getElementById("status").innerText = msg; }
+    async function connectWallet() {
+      try {
+        if (typeof window.ethereum === "undefined") {
+          setStatus("Error: MetaMask not detected. Open this site in Chrome/Brave with MetaMask installed.");
+          return;
+        }
+        if (typeof ethers === "undefined") {
+          setStatus("Error: Ethers library still loading. Refresh the page and try again.");
+          return;
+        }
+
+        setStatus("Requesting MetaMask connection...");
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+
+        // Automatically switch MetaMask to Sepolia Testnet (Chain ID 11155111 = 0xaa36a7)
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: "0xaa36a7" }],
+          });
+        } catch (switchErr) {
+          setStatus("Please switch MetaMask manually to the Sepolia Testnet.");
+        }
+
+        provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+        userAddr = await signer.getAddress();
+
+        document.getElementById("walletAddress").innerText = userAddr.slice(0, 6) + "..." + userAddr.slice(-4);
+        document.getElementById("connectBtn").innerText = "Connected";
+        setStatus("Connected to Sepolia! Wallet: " + userAddr);
+      } catch (err) {
+        setStatus("Connection failed: " + (err.message || err));
+      }
+    }
 
     async function buyDBC() {
-      const amt = ethers.parseUnits(document.getElementById("swapAmount").value, 18);
-      const musdc = new ethers.Contract(MUSDC_ADDR, ERC20_ABI, signer);
-      const dex = new ethers.Contract(DEX_ADDR, DEX_ABI, signer);
-      setStatus("Approving mUSDC...");
-      await (await musdc.approve(DEX_ADDR, amt)).wait();
-      setStatus("Buying $DBC (0.00% fee)...");
-      await (await dex.buyDBC(amt, 1)).wait();
-      setStatus("Success! Bought $DBC with 0% fee.");
+      try {
+        if (!signer) return setStatus("Click Connect MetaMask first!");
+        const amt = ethers.parseUnits(document.getElementById("swapAmount").value, 18);
+        const musdc = new ethers.Contract(MUSDC_ADDR, ERC20_ABI, signer);
+        const dex = new ethers.Contract(DEX_ADDR, DEX_ABI, signer);
+        setStatus("Step 1/2: Approve mUSDC in MetaMask...");
+        await (await musdc.approve(DEX_ADDR, amt)).wait();
+        setStatus("Step 2/2: Confirm Buy $DBC (0.00% fee) in MetaMask...");
+        await (await dex.buyDBC(amt, 1)).wait();
+        setStatus("Success! Bought $DBC with 0% fee.");
+      } catch (err) {
+        setStatus("Buy failed: " + (err.shortMessage || err.message));
+      }
     }
 
     async function sellDBC() {
-      const amt = ethers.parseUnits(document.getElementById("swapAmount").value, 18);
-      const dbc = new ethers.Contract(DBC_ADDR, ERC20_ABI, signer);
-      const dex = new ethers.Contract(DEX_ADDR, DEX_ABI, signer);
-      setStatus("Approving $DBC...");
-      await (await dbc.approve(DEX_ADDR, amt)).wait();
-      setStatus("Selling $DBC (0.10% mUSDC fee routed to stakers)...");
-      await (await dex.sellDBC(amt, 1)).wait();
-      setStatus("Success! Sold $DBC and funded Staking Vault.");
+      try {
+        if (!signer) return setStatus("Click Connect MetaMask first!");
+        const amt = ethers.parseUnits(document.getElementById("swapAmount").value, 18);
+        const dbc = new ethers.Contract(DBC_ADDR, ERC20_ABI, signer);
+        const dex = new ethers.Contract(DEX_ADDR, DEX_ABI, signer);
+        setStatus("Step 1/2: Approve $DBC in MetaMask...");
+        await (await dbc.approve(DEX_ADDR, amt)).wait();
+        setStatus("Step 2/2: Confirm Sell $DBC (0.10% mUSDC fee) in MetaMask...");
+        await (await dex.sellDBC(amt, 1)).wait();
+        setStatus("Success! Sold $DBC and routed mUSDC yield to stakers.");
+      } catch (err) {
+        setStatus("Sell failed: " + (err.shortMessage || err.message));
+      }
     }
 
     async function stakeDBC() {
-      const amt = ethers.parseUnits(document.getElementById("stakeAmount").value, 18);
-      const dbc = new ethers.Contract(DBC_ADDR, ERC20_ABI, signer);
-      const vault = new ethers.Contract(VAULT_ADDR, VAULT_ABI, signer);
-      setStatus("Approving $DBC for Staking Vault...");
-      await (await dbc.approve(VAULT_ADDR, amt)).wait();
-      setStatus("Staking $DBC...");
-      await (await vault.stake(amt)).wait();
-      setStatus("Success! $DBC staked.");
+      try {
+        if (!signer) return setStatus("Click Connect MetaMask first!");
+        const amt = ethers.parseUnits(document.getElementById("stakeAmount").value, 18);
+        const dbc = new ethers.Contract(DBC_ADDR, ERC20_ABI, signer);
+        const vault = new ethers.Contract(VAULT_ADDR, VAULT_ABI, signer);
+        setStatus("Step 1/2: Approve $DBC for Staking Vault...");
+        await (await dbc.approve(VAULT_ADDR, amt)).wait();
+        setStatus("Step 2/2: Confirm Stake $DBC in MetaMask...");
+        await (await vault.stake(amt)).wait();
+        setStatus("Success! $DBC staked in Vault.");
+      } catch (err) {
+        setStatus("Stake failed: " + (err.shortMessage || err.message));
+      }
     }
 
     async function checkRewards() {
-      const vault = new ethers.Contract(VAULT_ADDR, VAULT_ABI, signer);
-      const pending = await vault.pendingRewards(userAddr);
-      setStatus("Pending mUSDC Yield: " + ethers.formatUnits(pending, 18) + " mUSDC");
+      try {
+        if (!signer) return setStatus("Click Connect MetaMask first!");
+        const vault = new ethers.Contract(VAULT_ADDR, VAULT_ABI, signer);
+        const pending = await vault.pendingRewards(userAddr);
+        setStatus("Pending mUSDC Yield: " + ethers.formatUnits(pending, 18) + " mUSDC");
+      } catch (err) {
+        setStatus("Check failed: " + (err.shortMessage || err.message));
+      }
     }
 
     async function claimYield() {
-      const vault = new ethers.Contract(VAULT_ADDR, VAULT_ABI, signer);
-      setStatus("Claiming mUSDC rewards...");
-      await (await vault.claimRewards()).wait();
-      setStatus("Success! mUSDC yield claimed to your wallet.");
+      try {
+        if (!signer) return setStatus("Click Connect MetaMask first!");
+        const vault = new ethers.Contract(VAULT_ADDR, VAULT_ABI, signer);
+        setStatus("Confirm Claim mUSDC in MetaMask...");
+        await (await vault.claimRewards()).wait();
+        setStatus("Success! mUSDC yield claimed to your wallet.");
+      } catch (err) {
+        setStatus("Claim failed: " + (err.shortMessage || err.message));
+      }
     }
   </script>
 </body>
