@@ -1,3 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Database Chain ($DBC) — Testnet DeFi Portal</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b0f19; color: #f8fafc; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #334155; }
+    h1, h2 { margin-top: 0; color: #38bdf8; }
+    input { width: 100%; padding: 10px; margin: 8px 0 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; box-sizing: border-box; }
+    button { background: #0284c7; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; margin-right: 8px; margin-top: 6px; }
+    button:hover { background: #0369a1; }
+    .badge { background: #064e3b; color: #34d399; padding: 4px 10px; border-radius: 999px; font-size: 12px; }
+    #status { margin-top: 12px; color: #fbbf24; font-size: 14px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>Database Chain ($DBC) <span class="badge">Sepolia Testnet</span></h1>
+
+  <div class="card">
+    <button id="connectBtn" onclick="connectWallet()">Connect MetaMask</button>
+    <span id="walletAddress">Not connected</span>
+    <div id="status">Ready. Click Connect MetaMask to begin.</div>
+  </div>
+
+  <div class="card">
+    <h2>SimpleDEX (0.00% Buy | 0.10% Sell in mUSDC)</h2>
+    <input type="number" id="swapAmount" placeholder="Amount (e.g. 10)" />
+    <button onclick="buyDBC()">Buy $DBC (0% Fee)</button>
+    <button onclick="sellDBC()">Sell $DBC (0.10% Fee)</button>
+  </div>
+
+  <div class="card">
+    <h2>Staking Vault (Earn Real mUSDC Yield)</h2>
+    <input type="number" id="stakeAmount" placeholder="Amount of $DBC to stake" />
+    <button onclick="stakeDBC()">Stake $DBC</button>
+    <button onclick="claimYield()">Claim mUSDC Rewards</button>
+    <button onclick="checkRewards()">Check Pending Yield</button>
+  </div>
+
   <script>
     // 1. PASTE YOUR 4 REAL SEPOLIA CONTRACT ADDRESSES HERE:
     const DBC_ADDR   = "0xaD71CcC7947c4Fc7d9CFB374905d23392e97c27B";
@@ -11,12 +52,11 @@
       document.getElementById("status").innerText = msg;
     }
 
-    // FIXED: Properly reads whole part (parts[0]) and decimal part (parts[1])
     function toHex18(amountStr) {
       const clean = amountStr.trim();
       const parts = clean.split(".");
-      const wholePart = parts[0] ? BigInt(parts[0]) : 0n;
-      const fracStr = parts[1] ? (parts[1] + "000000000000000000").slice(0, 18) : "0";
+      const wholePart = parts ? BigInt(parts) : 0n;
+      const fracStr = parts ? (parts + "000000000000000000").slice(0, 18) : "0";
       const fracPart = BigInt(fracStr);
       const totalWei = (wholePart * (10n ** 18n)) + fracPart;
       return totalWei.toString(16).padStart(64, "0");
@@ -55,7 +95,7 @@
         }
         setStatus("Opening MetaMask...");
         const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        userAddr = accounts[0];
+        userAddr = accounts;
 
         try {
           await window.ethereum.request({
@@ -75,7 +115,6 @@
     }
 
     async function approveToken(tokenAddr, spenderAddr, hexAmount) {
-      // approve(address,uint256) -> 0x095ea7b3
       const data = "0x095ea7b3" + padAddr(spenderAddr) + hexAmount;
       await sendTx(tokenAddr, data);
     }
@@ -92,7 +131,6 @@
         await approveToken(MUSDC_ADDR, DEX_ADDR, hexAmt);
 
         setStatus("Step 2/2: Confirm Buy $DBC (0.00% fee) in MetaMask...");
-        // VERIFIED Keccak-256 selector for buyDBC(uint256,uint256) -> 0x35c908dd
         await sendTx(DEX_ADDR, "0x35c908dd" + hexAmt + minOut);
         setStatus("Success! Bought $DBC with 0.00% fee.");
       } catch (err) {
@@ -112,7 +150,6 @@
         await approveToken(DBC_ADDR, DEX_ADDR, hexAmt);
 
         setStatus("Step 2/2: Confirm Sell $DBC (0.10% fee in mUSDC) in MetaMask...");
-        // VERIFIED Keccak-256 selector for sellDBC(uint256,uint256) -> 0xa8b7a6b2
         await sendTx(DEX_ADDR, "0xa8b7a6b2" + hexAmt + minOut);
         setStatus("Success! Sold $DBC and routed mUSDC yield to Staking Vault.");
       } catch (err) {
@@ -131,7 +168,6 @@
         await approveToken(DBC_ADDR, VAULT_ADDR, hexAmt);
 
         setStatus("Step 2/2: Confirm Stake $DBC in MetaMask...");
-        // VERIFIED Keccak-256 selector for stake(uint256) -> 0xa694fc3a
         await sendTx(VAULT_ADDR, "0xa694fc3a" + hexAmt);
         setStatus("Success! $DBC staked in Vault.");
       } catch (err) {
@@ -142,7 +178,6 @@
     async function checkRewards() {
       try {
         if (!userAddr) return setStatus("Click Connect MetaMask first!");
-        // VERIFIED Keccak-256 selector for pendingRewards(address) -> 0x31d7a262
         const res = await window.ethereum.request({
           method: "eth_call",
           params: [{ to: VAULT_ADDR, data: "0x31d7a262" + padAddr(userAddr) }, "latest"]
@@ -160,7 +195,6 @@
       try {
         if (!userAddr) return setStatus("Click Connect MetaMask first!");
         setStatus("Confirm Claim mUSDC in MetaMask...");
-        // VERIFIED Keccak-256 selector for claimRewards() -> 0x372500ab
         await sendTx(VAULT_ADDR, "0x372500ab");
         setStatus("Success! mUSDC yield claimed to your wallet.");
       } catch (err) {
@@ -168,3 +202,5 @@
       }
     }
   </script>
+</body>
+</html>
