@@ -55,8 +55,8 @@
     function toHex18(amountStr) {
       const clean = amountStr.trim();
       const parts = clean.split(".");
-      const wholePart = parts ? BigInt(parts) : 0n;
-      const fracStr = parts ? (parts + "000000000000000000").slice(0, 18) : "0";
+      const wholePart = parts.at(0) ? BigInt(parts.at(0)) : 0n;
+      const fracStr = parts.at(1) ? (parts.at(1) + "000000000000000000").slice(0, 18) : "0";
       const fracPart = BigInt(fracStr);
       const totalWei = (wholePart * (10n ** 18n)) + fracPart;
       return totalWei.toString(16).padStart(64, "0");
@@ -95,7 +95,7 @@
         }
         setStatus("Opening MetaMask...");
         const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        userAddr = accounts;
+        userAddr = String(accounts.at(0));
 
         try {
           await window.ethereum.request({
